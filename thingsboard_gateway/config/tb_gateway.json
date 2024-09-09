@@ -1,7 +1,7 @@
 {
   "thingsboard": {
-    "host": "thingsboard.cloud",
-    "port": 1883,
+    "host": "10.100.10.17",
+    "port": 32419,
     "remoteShell": false,
     "remoteConfiguration": true,
     "statistics": {
@@ -19,7 +19,7 @@
     "handleDeviceRenaming": true,
     "security": {
       "type": "accessToken",
-      "accessToken": "YOUR_ACCESS_TOKEN"
+      "accessToken": "K5RpMA6DIvTmyhBbwXCs"
     },
     "qos": 1,
     "checkingDeviceActivity": {
@@ -52,5 +52,11 @@
     "keepAliveTimeMs": 10000,
     "keepAliveTimeoutMs": 5000
   },
-  "connectors": []
+  "connectors": [
+    {
+      "type": "socket",
+      "name": "socket",
+      "configuration": "socket.json"
+    }
+  ]
 }

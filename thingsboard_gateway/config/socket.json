@@ -1,27 +1,16 @@
 {
-  "name": "TCP Connector Example",
+  "name": "socket",
   "type": "TCP",
-  "address": "127.0.0.1",
-  "port": 50000,
+  "address": "0.0.0.0",
+  "port": 40555,
   "bufferSize": 1024,
+  "logLevel": "DEBUG",
   "devices": [
     {
-      "addressFilter": "127.0.0.1:*",
-      "deviceName": "Device Example",
+      "addressFilter": "*.*.*.*:*",
+      "deviceName": "CHECHI-TCP-TEST-ALL",
       "deviceType": "default",
-      "encoding": "utf-8",
-      "telemetry": [
-        {
-          "key": "temp",
-          "byteFrom": 0,
-          "byteTo": -1
-        },
-        {
-          "key": "hum",
-          "byteFrom": 0,
-          "byteTo": 2
-        }
-      ],
+      "encoding": "hex",
       "attributes": [
         {
           "key": "name",
@@ -33,28 +22,8 @@
           "byteFrom": 2,
           "byteTo": 4
         }
-      ],
-      "attributeRequests": [
-        {
-          "type": "shared",
-          "requestExpression": "${[0:3]==atr}",
-          "attributeNameExpression": "[3:]"
-        }
-      ],
-      "attributeUpdates": [
-        {
-          "encoding": "utf-16",
-          "attributeOnThingsBoard": "sharedName"
-        }
-      ],
-      "serverSideRpc": [
-        {
-          "methodRPC": "rpcMethod1",
-          "withResponse": true,
-          "methodProcessing": "write",
-          "encoding": "utf-8"
-        }
       ]
     }
-  ]
+  ],
+  "id": "51df7be1-b453-41d7-b666-1dca49a3d924"
 }

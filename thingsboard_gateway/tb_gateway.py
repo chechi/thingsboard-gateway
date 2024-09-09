@@ -34,7 +34,7 @@ def main():
 
 
 def daemon():
-    TBGatewayService("/etc/thingsboard-gateway/config/tb_gateway.json".replace('/', path.sep))
+    TBGatewayService("/Users/chechi/comp/thingsboard-gateway/thingsboard_gateway/config/tb_gateway.json".replace('/', path.sep))
 
 
 if __name__ == '__main__':

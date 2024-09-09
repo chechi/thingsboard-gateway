@@ -91,7 +91,7 @@
         "serviceHandler",
         "consoleHandler"
       ],
-      "level": "INFO",
+      "level": "DEBUG",
       "propagate": false
     },
     "connector": {
@@ -99,7 +99,7 @@
         "connectorHandler",
         "consoleHandler"
       ],
-      "level": "INFO",
+      "level": "DEBUG",
       "propagate": false
     },
     "converter": {
@@ -107,7 +107,7 @@
         "converterHandler",
         "consoleHandler"
       ],
-      "level": "INFO",
+      "level": "DEBUG",
       "propagate": false
     },
     "tb_connection": {
@@ -115,7 +115,7 @@
         "tb_connectionHandler",
         "consoleHandler"
       ],
-      "level": "INFO",
+      "level": "DEBUG",
       "propagate": false
     },
     "storage": {
@@ -123,7 +123,7 @@
         "storageHandler",
         "consoleHandler"
       ],
-      "level": "INFO",
+      "level": "DEBUG",
       "propagate": false
     },
     "extension": {

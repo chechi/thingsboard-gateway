@@ -19,13 +19,13 @@ from re import findall, compile, fullmatch
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep
-
+import binascii
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector
-from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
-from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.connectors.socket.socket_decorators import CustomCollectStatistics
+from thingsboard_gateway.gateway.statistics_service import StatisticsService
+from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
 
 SOCKET_TYPE = {
@@ -81,6 +81,7 @@ class SocketConnector(Connector, Thread):
                 self.__log.debug("Cannot compile device address with regex! %r", e)
 
             module = self.__load_converter(device)
+            # 加载解码器
             converter = module(
                 {'deviceName': device['deviceName'],
                  'deviceType': device.get('deviceType', 'default')}, self.__log) if module else None
@@ -98,6 +99,7 @@ class SocketConnector(Connector, Thread):
 
         return converted_devices, converters_for_devices
 
+    # 加载解码器
     def __load_converter(self, device):
         converter_class_name = device.get('converter', DEFAULT_UPLINK_CONVERTER)
         module = TBModuleLoader.import_module(self._connector_type, converter_class_name)
@@ -167,7 +169,7 @@ class SocketConnector(Connector, Thread):
         if self.__socket_type == 'TCP':
             self.__socket.listen(5)
 
-        self.__log.info('%s socket is up', self.__socket_type)
+        self.__log.info('%s SOCKET 服务启动成功', self.__socket_type)
 
         while not self.__stopped:
             try:
@@ -177,7 +179,7 @@ class SocketConnector(Connector, Thread):
                             conn, address = self.__socket.accept()
                             self.__connections[address] = conn
 
-                            self.__log.debug('New connection %s established', address)
+                            self.__log.debug('新的网络连接 %s 接入', address)
                             thread = Thread(target=self.__process_tcp_connection, daemon=True,
                                             name=f'Processing {address} connection',
                                             args=(conn, address))
@@ -185,7 +187,7 @@ class SocketConnector(Connector, Thread):
                     except OSError as e:
                         if self.__stopped:
                             break
-                        self.__log.error('Error accepting connection: %s', e)
+                        self.__log.error('连接接入异常: %s', e)
                 else:
                     data, client_address = self.__socket.recvfrom(self.__socket_buff_size)
                     self.__converting_requests.put((client_address, data))
@@ -195,15 +197,22 @@ class SocketConnector(Connector, Thread):
     def __process_tcp_connection(self, connection, address):
         while not self.__stopped:
             data = connection.recv(self.__socket_buff_size)
+            print(type(data))
 
             if data:
+                self.__log.debug('接收到的原始报文数据:%s', data)
+                self.__log.debug('接收到的原始报文转换为16进制数据:%s', data.hex())
                 self.__converting_requests.put((address, data))
+
+                self.__log.debug('发送注册成功指令给终端 %s', str(b'7b7b8bf237d7d'))
+                connection.send(b'7B7B8BF237D7D')
+
             else:
                 break
 
         connection.close()
         self.__connections.pop(address)
-        self.__log.debug('Connection %s closed', address)
+        self.__log.debug('关闭 %s 链接', address)
 
     def __process_data(self):
         while not self.__stopped:
@@ -224,16 +233,17 @@ class SocketConnector(Connector, Thread):
                             equal = data
                             if attr['haveIndex']:
                                 if attr.get('requestIndexFrom') and attr.get('requestIndexTo'):
-                                    index_from = int(attr['requestIndexFrom']) if attr['requestIndexFrom'] != '' else None
+                                    index_from = int(attr['requestIndexFrom']) if attr[
+                                                                                      'requestIndexFrom'] != '' else None
                                     index_to = int(attr['requestIndexTo']) if attr['requestIndexTo'] != '' else None
                                     equal = data[index_from:index_to]
                                 else:
                                     equal = data[int(attr['requestIndex'])]
-    
-                            if attr['requestEqual'] == equal.decode('utf-8'):
-                                is_attribute_request = True
-                                self.__process_attribute_request(device['deviceName'], attr, data)
-    
+
+                            # if attr['requestEqual'] == equal.decode('utf-8'):
+                            #     is_attribute_request = True
+                            #     self.__process_attribute_request(device['deviceName'], attr, data)
+
                         if is_attribute_request:
                             continue
 
