@@ -8,9 +8,88 @@
   "devices": [
     {
       "addressFilter": "*.*.*.*:*",
-      "deviceName": "CHECHI-TCP-TEST-ALL",
+      "category": "acrel",
+      "converter": "BytesSocketUplinkArclConverter",
+      "description": "安科瑞(DDSY1352)无线预付费电能表",
+      "deviceName": "ACREL-DDSY1352",
       "deviceType": "default",
       "encoding": "hex",
+      "data_frames": {
+        "start": "{{",
+        "end": "}}"
+      },
+      "cmds": [
+        {
+          "from": "device",
+          "to": "server",
+          "request": "93",
+          "response": "93",
+          "description": "对时"
+        },
+        {
+          "from": "device",
+          "to": "server",
+          "request": "91",
+          "response": "91",
+          "description": "Modbus数据域上传"
+        },
+        {
+          "from": "server",
+          "to": "device",
+          "request": "90",
+          "response": "90",
+          "description": "Modbus数据透传"
+        },
+        {
+          "from": "server",
+          "to": "device",
+          "request": "88",
+          "response": "88",
+          "description": "设置服务器IP和端口"
+        },
+        {
+          "from": "device",
+          "to": "server",
+          "request": "84",
+          "response": "84",
+          "description": "设备注册"
+        },
+        {
+          "from": "device",
+          "to": "server",
+          "request": "89",
+          "response": "89",
+          "description": "上传报警设定值字段"
+        },
+        {
+          "from": "server",
+          "to": "device",
+          "request": "0x82",
+          "response": "0x82",
+          "description": "设备参数下发,含上传时间间隔"
+        },
+        {
+          "from": "server",
+          "to": "device",
+          "request": "97",
+          "response": "97",
+          "description": "ID模式的Modbus透传,服务器下发含服务ID"
+        },
+        {
+          "from": "server",
+          "to": "device",
+          "request": "97",
+          "response": "97",
+          "description": "固件升级,服务器下发仪表升级URL"
+        },
+        {
+          "from": "device",
+          "to": "server",
+          "request": "94",
+          "response": "",
+          "description": "心跳上传,无需响应"
+        }
+      ],
       "attributes": [
         {
           "key": "name",

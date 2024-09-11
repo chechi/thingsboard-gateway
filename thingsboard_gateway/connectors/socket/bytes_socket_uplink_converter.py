@@ -29,7 +29,7 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
 
         dict_result = {
             "deviceName": self.__config['deviceName'],
-            "deviceType": self.__config['deviceType']
+            "deviceType": self.__config['deviceType','default']
         }
 
         try:
@@ -53,8 +53,7 @@ class BytesSocketUplinkConverter(SocketUplinkConverter):
                                 converted_data = str(converted_data)
 
                         if item.get('key') is not None:
-                            dict_result[section].append(
-                                {item['key']: converted_data})
+                            dict_result[section].append({item['key']: converted_data})
                         else:
                             self._log.error('Key for %s not found in config: %s', config['type'], config['section_config'])
                     except Exception as e:

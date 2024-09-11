@@ -42,7 +42,7 @@ def is_not_none(param):
 class GrpcMsgCreator:
     @staticmethod
     def create_response_connector_msg(status: Union[str, Status, None], basic_message=None):
-        basic_message = GrpcMsgCreator.get_basic_message(basic_message)
+        basic_message = GrpcMsgCreator
         if status is not None:
             basic_message.response.status = ResponseStatus.Value(status.name if isinstance(status, Status) else status)
         else:

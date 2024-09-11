@@ -11,7 +11,7 @@
 #     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
-
+import binascii
 import socket
 from queue import Queue
 from random import choice
@@ -19,11 +19,13 @@ from re import findall, compile, fullmatch
 from string import ascii_lowercase
 from threading import Thread
 from time import sleep
-import binascii
+
 from simplejson import dumps
 
 from thingsboard_gateway.connectors.connector import Connector
 from thingsboard_gateway.connectors.socket.socket_decorators import CustomCollectStatistics
+from thingsboard_gateway.extensions.socket.socket_uplink_acrel import get_cmd, get_msg_body, get_msg_crc, get_time_cmd, \
+    acrel_crc
 from thingsboard_gateway.gateway.statistics_service import StatisticsService
 from thingsboard_gateway.tb_utility.tb_loader import TBModuleLoader
 from thingsboard_gateway.tb_utility.tb_logger import init_logger
@@ -33,6 +35,13 @@ SOCKET_TYPE = {
     'UDP': socket.SOCK_DGRAM
 }
 DEFAULT_UPLINK_CONVERTER = 'BytesSocketUplinkConverter'
+
+
+def response(connection, cmd, directive):
+    if len(cmd['response']) > 0:
+        if directive == '84':
+            connection.send(b'\x7B\x7B\x84\xBF\x23\x7D\x7D')
+            return
 
 
 class SocketConnector(Connector, Thread):
@@ -58,10 +67,11 @@ class SocketConnector(Connector, Thread):
         self.__socket = socket.socket(socket.AF_INET, SOCKET_TYPE[self.__socket_type])
         self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.__converting_requests = Queue(-1)
-
+        self.__devices_config = self.__config.get('devices', [])
         self.__devices, self.__device_converters = self.__convert_devices_list()
         self.__connections = {}
 
+    # 转换设备列表
     def __convert_devices_list(self):
         devices = self.__config.get('devices', [])
 
@@ -82,9 +92,8 @@ class SocketConnector(Connector, Thread):
 
             module = self.__load_converter(device)
             # 加载解码器
-            converter = module(
-                {'deviceName': device['deviceName'],
-                 'deviceType': device.get('deviceType', 'default')}, self.__log) if module else None
+            converter = module(device, self.__log) if module else None
+
             converters_for_devices[address_key] = converter
 
             # validate attributeRequests requestExpression
@@ -194,19 +203,146 @@ class SocketConnector(Connector, Thread):
             except ConnectionAbortedError:
                 self.__socket.close()
 
+    def response(self, connection, cmd, directive):
+        if len(cmd['response']) > 0:
+            if directive == '84':
+                self.__log.debug('命令:{directive}:应答:{response}'.format(directive=directive,
+                                                                           response='\x7B\x7B\x84\xBF\x23\x7D\x7D'))
+                connection.send(b'\x7B\x7B\x84\xBF\x23\x7D\x7D')
+                return
+
+    def process_register_data(self, data_hex):
+        self.__log.debug('处理注册信息')
+        self.__log.debug('注册序列号:%s', data_hex[0:20])
+        self.__log.debug('卡号:%s', data_hex[20:50])
+        self.__log.debug('信号强度:%s', data_hex[50:51])
+        self.__log.debug('固件版本1:%s', data_hex[51:53])
+        self.__log.debug('固件版本2:%s', data_hex[53:55])
+        self.__log.debug('固件版本3:%s', data_hex[55:57])
+        self.__log.debug('定时上传间隔:%s', data_hex[57:58])
+
+    def process_basic_data(self, data_hex):
+        self.__log.debug('处理基础用电信息')
+        self.__log.debug('IMEI号:%s', binascii.a2b_hex(data_hex[6:26]).decode('ascii'))
+
+        self.__log.debug('A电压:%s', str(int(data_hex[70:74], 16) / 100))
+        self.__log.debug('B电压:%s', str(int(data_hex[74:78], 16) / 100))
+        self.__log.debug('C电压:%s', str(int(data_hex[78:82], 16) / 100))
+
+        self.__log.debug('A电流:%s', int(data_hex[82:86], 16))
+        self.__log.debug('B电流:%s', int(data_hex[86:90], 16))
+        self.__log.debug('C电流:%s', int(data_hex[90:94], 16))
+
+        self.__log.debug('A有功功率:%s', int(data_hex[94:98], 16))
+        self.__log.debug('B有功功率:%s', int(data_hex[98:102], 16))
+        self.__log.debug('C有功功率:%s', int(data_hex[102:106], 16))
+        self.__log.debug('D有功功率:%s', int(data_hex[106:110], 16))
+
+        self.__log.debug('A无功功率:%s', int(data_hex[110:114], 16))
+        self.__log.debug('B无功功率:%s', int(data_hex[114:118], 16))
+        self.__log.debug('C无功功率:%s', int(data_hex[118:122], 16))
+        self.__log.debug('D无功功率:%s', int(data_hex[122:126], 16))
+
+        self.__log.debug('A功率因数:%s', int(data_hex[126:130], 16))
+        self.__log.debug('B功率因数:%s', int(data_hex[130:134], 16))
+        self.__log.debug('C功率因数:%s', int(data_hex[134:138], 16))
+        self.__log.debug('D功率因数:%s', int(data_hex[138:142], 16))
+
+        self.__log.debug('PT:%s', int(data_hex[142:146], 16))
+        self.__log.debug('CT:%s', int(data_hex[146:148], 16))
+
+        self.__log.debug('总用电量:%s', int(data_hex[148:156], 16))
+        self.__log.debug('尖用电量:%s', int(data_hex[156:164], 16))
+        self.__log.debug('峰用电量:%s', int(data_hex[164:172], 16))
+        self.__log.debug('平用电量:%s', int(data_hex[172:180], 16))
+        self.__log.debug('谷用电量:%s', int(data_hex[180:192], 16))
+
+        self.__log.debug('剩余金额:%s', int(data_hex[192:200], 16))
+        self.__log.debug('购电次数:%s', int(data_hex[200:204], 16))
+
+        self.__log.debug('{Y}年:{M}月:{D}日:星期{x}:{h}时:{m}分:{s}秒'.format(
+            Y=str(int(data_hex[228:230], 16)),
+            M=str(int(data_hex[230:232], 16)),
+            D=str(int(data_hex[232:234], 16)),
+            x=str(int(data_hex[234:236], 16)),
+            h=str(int(data_hex[236:238], 16)),
+            m=str(int(data_hex[238:240], 16)),
+            s=str(int(data_hex[240:242], 16))
+        ))
+
+    # print('固件版本号:', data_hex[138:138])
+
     def __process_tcp_connection(self, connection, address):
         while not self.__stopped:
             data = connection.recv(self.__socket_buff_size)
-            print(type(data))
 
             if data:
-                self.__log.debug('接收到的原始报文数据:%s', data)
                 self.__log.debug('接收到的原始报文转换为16进制数据:%s', data.hex())
+
+                for device in self.__devices_config:
+                    if device['category'] == 'acrel' and device['deviceName'] == 'ACREL-DDSY1352':
+
+                        if len(data.hex()) == 0:
+                            self.__log.debug('接收到的消息为空')
+                            break
+
+                        if get_msg_crc(data.hex()) is None:
+                            break
+
+                        # if get_msg_crc(data.hex()) != acrel_crc(get_msg_body(data.hex())):
+                        #     self.__log.debug('CRC校验失败')
+                        #     break
+
+                        # 82 设备参数下发
+
+                        if get_cmd(data.hex()) == '84':
+                            msg_body = get_msg_body(data.hex())
+                            print(msg_body)
+                            self.process_register_data(msg_body)
+                            print('注册')
+
+                        # connection.send(b'\x7B\x7B\x84\xBF\x23\x7D\x7D')
+                        connection.send(bytes.fromhex('7b7b84bf237d7d'))
+
+                        # x88 设置IP端口
+
+                        if get_cmd(data.hex()) == '89':
+                            msg_body = get_msg_body(data.hex())
+                            print(msg_body)
+                            print('报警')
+
+                        # x90 modbus 数据透传
+
+                        if get_cmd(data.hex()) == '91':
+                            msg_body = get_msg_body(data.hex())
+                            print(msg_body)
+                            self.process_basic_data(msg_body)
+                            print('基础信息上报')
+
+                        if get_cmd(data.hex()) == '93':
+                            self.__log.debug('对时')
+                            msg_body = get_msg_body(data.hex())
+                            self.__log.debug(msg_body)
+                            crc = acrel_crc('93{cmd}'.format(cmd=get_time_cmd()))
+                            self.__log.debug('对时CRC校验码:%s', crc)
+                            cmd = '7b7b93{cmd}{crc}7d7d'.format(cmd=get_time_cmd(), crc=crc)
+                            self.__log.debug('对时指令:{cmd}'.format(cmd=cmd))
+
+                            connection.send(bytes.fromhex(cmd))
+
+                        if get_cmd(data.hex()) == '94':
+                            msg_body = get_msg_body(data.hex())
+                            self.__log.debug(msg_body)
+                            self.__log.debug('心跳检测')
+
+                        if get_cmd(data.hex()) == '94':
+                            msg_body = get_msg_body(data.hex())
+                            print(msg_body)
+                            print('心跳检测')
+
+                        # 97 ID模式的 Modbus透传 服务器下发含服务ID
+
                 self.__converting_requests.put((address, data))
-
-                self.__log.debug('发送注册成功指令给终端 %s', str(b'7b7b8bf237d7d'))
-                connection.send(b'7B7B8BF237D7D')
-
             else:
                 break
 
@@ -260,10 +396,13 @@ class SocketConnector(Connector, Thread):
 
         try:
             device_config = {
+                'deviceName': device.get('deviceName', None),
+                'cmds': device.get('cmds', []),
                 'encoding': device.get('encoding', 'utf-8').lower(),
                 'telemetry': device.get('telemetry', []),
                 'attributes': device.get('attributes', [])
             }
+            # 解码器解码数据包
             converted_data = converter.convert(device_config, data)
 
             self.statistics['MessagesReceived'] = self.statistics['MessagesReceived'] + 1

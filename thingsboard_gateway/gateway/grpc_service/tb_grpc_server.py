@@ -32,7 +32,7 @@ class TBGRPCServer(messages_pb2_grpc.TBGatewayProtoServiceServicer):
                     del self.__writing_queues[session_id]
         if data_to_send is None:
             basic_msg = FromServiceMessage()
-            basic_msg.response.MergeFrom(Response())
+            response.MergeFrom(Response())
             data_to_send = basic_msg
         return data_to_send
 
@@ -48,11 +48,11 @@ class TBGRPCServer(messages_pb2_grpc.TBGatewayProtoServiceServicer):
     def get_response(status, connector_message):
         msg = FromServiceMessage()
         if isinstance(status, str):
-            msg.response.status = ResponseStatus.Value(status)
+            response.status = ResponseStatus.Value(status)
         else:
-            msg.response.status = status
+            response.status = status
         if connector_message is not None:
-            msg.response.connectorMessage.MergeFrom(connector_message)
+            response.connectorMessage.MergeFrom(connector_message)
         return msg
 
     @staticmethod
