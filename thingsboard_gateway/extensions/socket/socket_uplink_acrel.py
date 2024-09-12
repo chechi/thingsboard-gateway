@@ -31,9 +31,10 @@ def acrel_crc(hex_str):
     安科瑞MODBUS CRC 校验需要调整CRC校验码的位置
     """
     out = calculator(hex_str, modbus_crc16).replace('0x', '')
-    before = out[0:2]
-    after = out[2:]
-    return after + before
+    # before = out[0:2]
+    # after = out[2:]
+    # return after + before
+    return out
 
 
 def get_time_cmd():

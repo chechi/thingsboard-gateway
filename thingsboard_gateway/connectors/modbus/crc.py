@@ -38,4 +38,8 @@ def calculator(ds, cfg):
         out = hex(reverse(init_data, 16))
     else:
         out = hex(init_data)
+
+    if len(out) < 4:
+        out = '0' + out
+
     return out

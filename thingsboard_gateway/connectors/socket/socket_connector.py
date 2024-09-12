@@ -270,7 +270,67 @@ class SocketConnector(Connector, Thread):
             s=str(int(data_hex[240:242], 16))
         ))
 
-    # print('固件版本号:', data_hex[138:138])
+    def get_edit_time_cmd(self):
+
+        cmd_msg = '93{cmd}'.format(cmd=get_time_cmd())
+
+        self.__log.debug('对时下发命令消息体:%s', cmd_msg)
+
+        crc = acrel_crc(cmd_msg)
+
+        self.__log.debug('对时CRC校验码:%s', crc)
+
+        send_msg = '7b7b' + cmd_msg + crc + '7d7d'
+
+        self.__log.debug('发送的报文:%s', send_msg)
+
+        return send_msg
+
+    def get_edit_device_config_cmd(self):
+        self.__log.debug('获取设备配置参数')
+
+        cmd_msg = '8202'
+
+        crc = acrel_crc(cmd_msg)
+
+        self.__log.debug('CRC校验码:%s', crc)
+
+        send_msg = '7b7b' + cmd_msg + crc + '7d7d'
+
+        self.__log.debug('发送的报文:%s', send_msg)
+
+        return send_msg
+
+    def get_network_config_cmd(self):
+        self.__log.debug('获取网关网络配置')
+
+        # address = self.__config['address']
+        address = '111.204.71.106'
+        port = self.__config['port']
+
+        self.__log.debug('{address}:{port}'.format(address=address, port=port))
+
+        address_hex_list = []
+        for ad in address.split('.'):
+            address_hex_list.append(hex(int(ad)).replace('0x', ''))
+
+        self.__log.debug('IP地址16进制编码:%s', address_hex_list)
+
+        port_hex = hex(port).replace('0x', '')
+
+        cmd_msg = '88' + ''.join(address_hex_list) + port_hex
+
+        self.__log.debug('网络配置指令:%s', cmd_msg)
+
+        crc = acrel_crc(cmd_msg)
+
+        self.__log.debug('CRC校验码:%s', crc)
+
+        send_msg = '7b7b' + cmd_msg + crc + '7d7d'
+
+        self.__log.debug('发送的报文:%s', send_msg)
+
+        return send_msg
 
     def __process_tcp_connection(self, connection, address):
         while not self.__stopped:
@@ -283,62 +343,80 @@ class SocketConnector(Connector, Thread):
                     if device['category'] == 'acrel' and device['deviceName'] == 'ACREL-DDSY1352':
 
                         if len(data.hex()) == 0:
-                            self.__log.debug('接收到的消息为空')
+                            self.__log.warning('接收到的消息为空')
                             break
 
                         if get_msg_crc(data.hex()) is None:
+                            self.__log.warning('缺失CRC校验码')
                             break
 
                         # if get_msg_crc(data.hex()) != acrel_crc(get_msg_body(data.hex())):
                         #     self.__log.debug('CRC校验失败')
                         #     break
 
-                        # 82 设备参数下发
-
+                        # x84 注册请求
                         if get_cmd(data.hex()) == '84':
-                            msg_body = get_msg_body(data.hex())
-                            print(msg_body)
-                            self.process_register_data(msg_body)
-                            print('注册')
+                            self.__log.debug('注册')
 
-                        # connection.send(b'\x7B\x7B\x84\xBF\x23\x7D\x7D')
+                            msg_body = get_msg_body(data.hex())
+                            self.__log.debug('设备消息体:{msg_body}'.format(msg_body=msg_body))
+
+                            self.process_register_data(msg_body)
+
+                        # x84 注册响应
                         connection.send(bytes.fromhex('7b7b84bf237d7d'))
 
+                        # x82 设置设备参数
+                        connection.send(bytes.fromhex(self.get_edit_device_config_cmd()))
+
+                        # x82 响应设备参数下发
+                        if get_cmd(data.hex()) == '82':
+                            self.__log.debug('修改设备参数')
+                            msg_body = get_msg_body(data.hex())
+                            self.__log.debug('设备消息体:{msg_body}'.format(msg_body=msg_body))
+
                         # x88 设置IP端口
+                        connection.send(bytes.fromhex(self.get_network_config_cmd()))
 
+                        # x88 响应服务端IP端口配置指令
+                        if get_cmd(data.hex()) == '88':
+                            self.__log.debug('接收设置IP端口信息')
+                            msg_body = get_msg_body(data.hex())
+                            self.__log.debug('设备消息体:{msg_body}'.format(msg_body=msg_body))
+
+                        # x89 设备报警请求
                         if get_cmd(data.hex()) == '89':
+                            self.__log.debug('报警')
                             msg_body = get_msg_body(data.hex())
-                            print(msg_body)
-                            print('报警')
+                            self.__log.debug('设备消息体:{msg_body}'.format(msg_body=msg_body))
 
-                        # x90 modbus 数据透传
+                        # x90 响应 modbus 数据透传
+                        if get_cmd(data.hex()) == '90':
+                            self.__log.debug('响应 modbus 数据透传')
+                            msg_body = get_msg_body(data.hex())
+                            self.__log.debug('设备消息体:{msg_body}'.format(msg_body=msg_body))
 
+                        # x91 集抄用电信息
                         if get_cmd(data.hex()) == '91':
+                            self.__log.debug('集抄用电信息')
                             msg_body = get_msg_body(data.hex())
-                            print(msg_body)
+                            self.__log.debug('设备消息体:{msg_body}'.format(msg_body=msg_body))
                             self.process_basic_data(msg_body)
-                            print('基础信息上报')
 
+                        # x93 设置对时
+                        connection.send(bytes.fromhex(self.get_edit_time_cmd()))
+
+                        # x93 设备响应对时
                         if get_cmd(data.hex()) == '93':
                             self.__log.debug('对时')
                             msg_body = get_msg_body(data.hex())
-                            self.__log.debug(msg_body)
-                            crc = acrel_crc('93{cmd}'.format(cmd=get_time_cmd()))
-                            self.__log.debug('对时CRC校验码:%s', crc)
-                            cmd = '7b7b93{cmd}{crc}7d7d'.format(cmd=get_time_cmd(), crc=crc)
-                            self.__log.debug('对时指令:{cmd}'.format(cmd=cmd))
+                            self.__log.debug('设备消息体:{msg_body}'.format(msg_body=msg_body))
 
-                            connection.send(bytes.fromhex(cmd))
-
+                        # x94 设备心跳检测
                         if get_cmd(data.hex()) == '94':
-                            msg_body = get_msg_body(data.hex())
-                            self.__log.debug(msg_body)
                             self.__log.debug('心跳检测')
-
-                        if get_cmd(data.hex()) == '94':
                             msg_body = get_msg_body(data.hex())
-                            print(msg_body)
-                            print('心跳检测')
+                            self.__log.debug('设备消息体:{msg_body}'.format(msg_body=msg_body))
 
                         # 97 ID模式的 Modbus透传 服务器下发含服务ID
 
